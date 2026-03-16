@@ -8,8 +8,90 @@ load --table Values
 [
 {"value": "a"},
 {"value": "b"},
-{"value": "c"}
+{"value": "c"},
+{"value": "ab"},
+{"value": "ac"}
 ]
-[[0,0.0,0.0],3]
-select Values --filter 'all_records() && sample_selector("value", {"includes": "a,c"})'
-[[0,0.0,0.0],[[[2],[["_id","UInt32"],["value","ShortText"]],[1,"a"],[3,"c"]]]]
+[[0,0.0,0.0],5]
+select Values --filter 'all_records() && sample_selector("value", {"includes": "a,b"})'
+[[0,0.0,0.0],[[[2],[["_id","UInt32"],["value","ShortText"]],[1,"a"],[2,"b"]]]]
+select Values --filter 'all_records() && sample_selector("value", {"includes": "a,ac"})'
+[[0,0.0,0.0],[[[2],[["_id","UInt32"],["value","ShortText"]],[1,"a"],[5,"ac"]]]]
+select Values --filter 'all_records() && sample_selector("value", {"includes": "a,b,c"})'
+[
+  [
+    0,
+    0.0,
+    0.0
+  ],
+  [
+    [
+      [
+        3
+      ],
+      [
+        [
+          "_id",
+          "UInt32"
+        ],
+        [
+          "value",
+          "ShortText"
+        ]
+      ],
+      [
+        1,
+        "a"
+      ],
+      [
+        2,
+        "b"
+      ],
+      [
+        3,
+        "c"
+      ]
+    ]
+  ]
+]
+select Values --filter 'all_records() && sample_selector("value", {"includes": "a,b,c,ac"})'
+[
+  [
+    0,
+    0.0,
+    0.0
+  ],
+  [
+    [
+      [
+        4
+      ],
+      [
+        [
+          "_id",
+          "UInt32"
+        ],
+        [
+          "value",
+          "ShortText"
+        ]
+      ],
+      [
+        1,
+        "a"
+      ],
+      [
+        2,
+        "b"
+      ],
+      [
+        3,
+        "c"
+      ],
+      [
+        5,
+        "ac"
+      ]
+    ]
+  ]
+]
