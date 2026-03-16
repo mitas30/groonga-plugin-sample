@@ -1,11 +1,12 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <groonga/plugin.h>
 
 #ifdef __GNUC__
-# define GNUC_UNUSED __attribute__((__unused__))
+#define GNUC_UNUSED __attribute__((__unused__))
 #else
-# define GNUC_UNUSED
+#define GNUC_UNUSED
 #endif
 
 static grn_obj *
@@ -15,13 +16,15 @@ func_strlen(grn_ctx *ctx, GNUC_UNUSED int nargs, GNUC_UNUSED grn_obj **args,
   grn_obj *result;
   unsigned int str_length = GRN_TEXT_LEN(args[0]);
 
-  if ((result = grn_plugin_proc_alloc(ctx, user_data, GRN_DB_INT64, 0))) {
+  if ((result = grn_plugin_proc_alloc(ctx, user_data, GRN_DB_INT64, 0)))
+  {
     GRN_INT64_SET(ctx, result, str_length);
   }
   return result;
 }
 
 static grn_rc
+// 完全一致するものを選択する
 selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *index,
                 GNUC_UNUSED int nargs, grn_obj **args,
                 grn_obj *res, GNUC_UNUSED grn_operator op)
@@ -31,7 +34,8 @@ selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *i
   grn_obj *includes = NULL;
   grn_hash *include_keys = NULL;
 
-  if (nargs > 3) {
+  if (nargs > 3)
+  {
     GRN_PLUGIN_ERROR(ctx, GRN_INVALID_ARGUMENT,
                      "sample_selector(): wrong number of arguments (%d for 1..2)",
                      nargs - 1);
@@ -39,7 +43,8 @@ selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *i
   }
   column_name = args[1];
 
-  if (args[2]->header.type == GRN_TABLE_HASH_KEY) {
+  if (args[2]->header.type == GRN_TABLE_HASH_KEY)
+  {
     grn_hash_cursor *cursor;
     const char *key;
     grn_obj *value;
@@ -49,17 +54,22 @@ selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *i
                                   NULL, 0, NULL, 0,
                                   0, -1, 0);
 
-    if (!cursor) {
+    if (!cursor)
+    {
       GRN_PLUGIN_ERROR(ctx, GRN_NO_MEMORY_AVAILABLE,
                        "sample_selector(): failed to open cursor for options");
       return ctx->rc;
     }
-    while ((grn_hash_cursor_next(ctx, cursor)) != GRN_ID_NIL) {
+    while ((grn_hash_cursor_next(ctx, cursor)) != GRN_ID_NIL)
+    {
       grn_hash_cursor_get_key_value(ctx, cursor, (void **)&key, &key_size,
                                     (void **)&value);
-      if (key_size == 8 && !memcmp(key, "includes", 8)) {
+      if (key_size == 8 && !memcmp(key, "includes", 8))
+      {
         includes = value;
-      } else {
+      }
+      else
+      {
         GRN_PLUGIN_ERROR(ctx, GRN_INVALID_ARGUMENT, "invalid option name: <%.*s>",
                          key_size, (char *)key);
         grn_hash_cursor_close(ctx, cursor);
@@ -72,38 +82,52 @@ selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *i
   include_keys = grn_hash_create(ctx, NULL,
                                  GRN_TABLE_MAX_KEY_SIZE,
                                  0,
-                                 GRN_OBJ_TABLE_HASH_KEY|GRN_OBJ_KEY_VAR_SIZE);
-  if (!include_keys) {
+                                 GRN_OBJ_TABLE_HASH_KEY | GRN_OBJ_KEY_VAR_SIZE);
+  if (!include_keys)
+  {
     GRN_PLUGIN_ERROR(ctx, GRN_NO_MEMORY_AVAILABLE,
                      "sample_selector(): failed to create include keys table");
     goto exit;
   }
-
-  switch (includes->header.type) {
-  case GRN_BULK :
+  switch (includes->header.type)
+  {
+  case GRN_BULK:
+  {
+    const char *top, *cursor, *end;
+    top = GRN_TEXT_VALUE(includes);
+    cursor = top;
+    end = top + GRN_TEXT_LEN(includes);
+    printf("includes: <%s>\n", top);
+    for (; cursor <= end; cursor++)
     {
-      const char *top, *cursor, *end;
-      top = GRN_TEXT_VALUE(includes);
-      cursor = top;
-      end = top + GRN_TEXT_LEN(includes);
-      for (; cursor <= end; cursor++) {
-        if (cursor[0] == ',' || cursor == end) {
-          grn_hash_add(ctx, include_keys, top, cursor - top, NULL, NULL);
-          top = cursor + 1;
-        }
+      if (cursor[0] == ',' || cursor == end)
+      {
+        grn_hash_add(ctx, include_keys, top, cursor - top, NULL, NULL);
+        top = cursor + 1;
       }
     }
-    break;
-  case GRN_VECTOR :
+  }
+  break;
+  case GRN_VECTOR:
+  {
+    unsigned int i, n;
+    n = grn_vector_size(ctx, includes);
+    for (i = 0; i < n; i++)
     {
-      /* implement me */
+      const char *element;
+      unsigned int element_len;
+      element_len = grn_vector_get_element(ctx, includes, i, &element, NULL, NULL);
+      grn_hash_add(ctx, include_keys, element, element_len, NULL, NULL);
     }
-    break;
-  default :
+  }
+  break;
+  default:
+    printf("invalid type for includes: %d\n", includes->header.type);
     break;
   }
 
-  if (include_keys) {
+  if (include_keys)
+  {
     grn_obj buf;
     grn_obj *accessor;
 
@@ -111,8 +135,9 @@ selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *i
 
     accessor = grn_obj_column(ctx, res,
                               GRN_TEXT_VALUE(column_name),
-                               GRN_TEXT_LEN(column_name));
-    if (!accessor) {
+                              GRN_TEXT_LEN(column_name));
+    if (!accessor)
+    {
       GRN_PLUGIN_ERROR(ctx, GRN_NO_MEMORY_AVAILABLE,
                        "sample_selector(): can't open column <%.*s>",
                        (int32_t)GRN_TEXT_LEN(column_name),
@@ -120,21 +145,25 @@ selector_sample(grn_ctx *ctx, GNUC_UNUSED grn_obj *table, GNUC_UNUSED grn_obj *i
       goto exit;
     }
 
-    GRN_HASH_EACH_BEGIN(ctx, (grn_hash *)res, cur, id) {
+    GRN_HASH_EACH_BEGIN(ctx, (grn_hash *)res, cur, id)
+    {
       GRN_BULK_REWIND(&buf);
       grn_obj_get_value(ctx, accessor, id, &buf);
-      if (grn_hash_get(ctx, include_keys, GRN_TEXT_VALUE(&buf), GRN_TEXT_LEN(&buf), NULL) == GRN_ID_NIL) {
+      if (grn_hash_get(ctx, include_keys, GRN_TEXT_VALUE(&buf), GRN_TEXT_LEN(&buf), NULL) == GRN_ID_NIL)
+      {
         grn_hash_cursor_delete(ctx, cur, NULL);
       }
-    } GRN_HASH_EACH_END(ctx, cur);
+    }
+    GRN_HASH_EACH_END(ctx, cur);
 
     grn_obj_close(ctx, accessor);
     GRN_OBJ_FIN(ctx, &buf);
   }
 
-exit :
+exit:
 
-  if (include_keys) {
+  if (include_keys)
+  {
     grn_hash_close(ctx, include_keys);
   }
 
@@ -152,7 +181,6 @@ GRN_PLUGIN_REGISTER(grn_ctx *ctx)
 {
   grn_proc_create(ctx, "strlen", -1, GRN_PROC_FUNCTION,
                   func_strlen, NULL, NULL, 0, NULL);
-
 
   {
     grn_obj *selector_proc;
